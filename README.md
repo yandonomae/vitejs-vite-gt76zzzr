@@ -2,7 +2,20 @@
 
 住所を含むCSVに対して、Google Geocoding APIを使って緯度・経度を付与するスクリプトです。
 
-## セットアップ
+## Google Colab で実行する（ローカル環境不要）
+
+ローカル環境がなくても、Colab ノートブック `geocode_colab.ipynb` を開けば実行できます。
+
+### 手順
+
+1. このリポジトリを GitHub に置く（または既存の GitHub リポジトリを使う）
+2. Colab で `geocode_colab.ipynb` を開く
+3. ノートブック内の手順で API キーを設定し、CSV をアップロードして実行
+4. 出力 CSV を Colab からダウンロード
+
+> 補足: `geocode_csv.py` は標準ライブラリのみで動作するため、Colab 上でも追加インストール不要です。
+
+## ローカルで実行する場合（任意）
 
 ```bash
 python -m venv .venv
