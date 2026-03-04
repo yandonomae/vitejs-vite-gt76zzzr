@@ -330,6 +330,8 @@ def process_csv(
     place_id_col: str = "place_id",
     matched_name_col: str = "候補店名(採用)",
     matched_address_col: str = "候補住所(採用)",
+    matched_lat_col: str = "候補緯度(採用)",
+    matched_lng_col: str = "候補経度(採用)",
     match_score_col: str = "候補スコア",
     fallback_reason_col: str = "フォールバック理由",
     distance_col: str = "places_geocode_distance_m",
@@ -351,6 +353,8 @@ def process_csv(
             place_id_col,
             matched_name_col,
             matched_address_col,
+            matched_lat_col,
+            matched_lng_col,
             match_score_col,
             fallback_reason_col,
             distance_col,
@@ -367,6 +371,8 @@ def process_csv(
         row[matched_name_col] = ""
         row[matched_address_col] = ""
         row[match_score_col] = ""
+        row[matched_lat_col] = ""
+        row[matched_lng_col] = ""
         row[fallback_reason_col] = ""
         row[distance_col] = ""
 
@@ -404,6 +410,8 @@ def process_csv(
             row[matched_name_col] = place_match.candidate.name
             row[matched_address_col] = place_match.candidate.formatted_address
             row[match_score_col] = f"{place_match.score:.2f}"
+            row[matched_lat_col] = str(place_match.candidate.lat)
+            row[matched_lng_col] = str(place_match.candidate.lng)
             if geocode_result is not None:
                 dist = _haversine_m(geocode_result.lat, geocode_result.lng, place_match.candidate.lat, place_match.candidate.lng)
                 row[distance_col] = f"{dist:.1f}"
@@ -435,9 +443,12 @@ def process_csv(
             row[fallback_reason_col] = "NO_PLACE_CANDIDATE"
         else:
             row[fallback_reason_col] = f"LOW_PLACE_CONFIDENCE:{place_match.confidence}"
+            row[place_id_col] = place_match.candidate.place_id
             row[matched_name_col] = place_match.candidate.name
             row[matched_address_col] = place_match.candidate.formatted_address
             row[match_score_col] = f"{place_match.score:.2f}"
+            row[matched_lat_col] = str(place_match.candidate.lat)
+            row[matched_lng_col] = str(place_match.candidate.lng)
             dist = _haversine_m(geocode_result.lat, geocode_result.lng, place_match.candidate.lat, place_match.candidate.lng)
             row[distance_col] = f"{dist:.1f}"
         success += 1
