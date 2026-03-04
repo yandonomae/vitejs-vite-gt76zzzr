@@ -65,6 +65,24 @@ python geocode_csv.py input.csv output.csv --disable-places
 - 出力: `緯度`, `経度`, `正規化住所` に加えて、`採用方式`, `信頼度`, `place_id`, `候補スコア`, `フォールバック理由` などを追記したCSV
 - エンコーディング: UTF-8 with BOM (`utf-8-sig`)
 
+### geocode_fallback 行を対話レビューして最終CSVを作る
+
+`geocode_csv.py` 実行後に、`LOW_PLACE_CONFIDENCE` でフォールバックした行だけを1件ずつ確認し、
+`geocode` のままにするか `places` 候補を採用するかを選べます。
+
+```bash
+python review_fallbacks.py geocode_result.csv finalized.csv
+```
+
+- 対象: `採用方式=geocode_fallback` かつ `フォールバック理由=LOW_PLACE_CONFIDENCE:*`
+- 入力操作:
+  - `p`: Places候補を採用
+  - `g`: Geocodeのまま維持
+  - `q`: 途中で保存して終了
+- Places採用時は `採用方式=places_manual_review`, `信頼度=manual_override` に更新
+
+> 補足: 後工程での人手判断ができるよう、`geocode_csv.py` は `候補緯度(採用)` / `候補経度(採用)` も出力します。
+
 ## 注意点
 
 - API利用料金・クォータ制限に注意してください。
