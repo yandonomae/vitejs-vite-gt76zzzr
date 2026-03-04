@@ -25,17 +25,29 @@ class GeocodeResult:
     formatted_address: str
 
 
+@dataclass
+class GeocodeFailure:
+    status: str
+    message: str
+
+
+@dataclass
+class GeocodeResponse:
+    result: Optional[GeocodeResult]
+    failure: Optional[GeocodeFailure] = None
+
+
 class GoogleGeocoder:
     def __init__(self, api_key: str, sleep_seconds: float = 0.1, timeout_seconds: int = 10) -> None:
         self.api_key = api_key
         self.sleep_seconds = sleep_seconds
         self.timeout_seconds = timeout_seconds
-        self._cache: Dict[str, Optional[GeocodeResult]] = {}
+        self._cache: Dict[str, GeocodeResponse] = {}
 
-    def geocode(self, address: str) -> Optional[GeocodeResult]:
+    def geocode(self, address: str) -> GeocodeResponse:
         address = address.strip()
         if not address:
-            return None
+            return GeocodeResponse(result=None, failure=GeocodeFailure(status="EMPTY_ADDRESS", message="住所が空です"))
 
         if address in self._cache:
             return self._cache[address]
@@ -61,14 +73,21 @@ class GoogleGeocoder:
                 lng=loc["lng"],
                 formatted_address=top.get("formatted_address", ""),
             )
-            self._cache[address] = result
+            response = GeocodeResponse(result=result)
+            self._cache[address] = response
             time.sleep(self.sleep_seconds)
-            return result
+            return response
 
         if status in {"ZERO_RESULTS", "OVER_DAILY_LIMIT", "OVER_QUERY_LIMIT", "REQUEST_DENIED", "INVALID_REQUEST"}:
-            self._cache[address] = None
+            error_message = payload.get("error_message") or ""
+            failure_message = error_message if error_message else "Geocoding APIが結果を返しませんでした"
+            response = GeocodeResponse(
+                result=None,
+                failure=GeocodeFailure(status=status, message=failure_message),
+            )
+            self._cache[address] = response
             time.sleep(self.sleep_seconds)
-            return None
+            return response
 
         raise RuntimeError(f"Unexpected Geocoding API status: {status}; response={payload}")
 
@@ -99,35 +118,42 @@ def process_csv(
     lat_col: str = "緯度",
     lng_col: str = "経度",
     formatted_address_col: str = "正規化住所",
+    failure_reason_col: str = "ジオコーディング失敗理由",
 ) -> Tuple[int, int]:
     headers, rows = _read_rows(input_csv)
     if address_col not in headers:
         raise ValueError(f"住所列 '{address_col}' が入力CSVに存在しません: {headers}")
 
-    out_headers = _ensure_columns(headers, [lat_col, lng_col, formatted_address_col])
+    out_headers = _ensure_columns(headers, [lat_col, lng_col, formatted_address_col, failure_reason_col])
 
     success = 0
     failed = 0
-    for row in rows:
+    for i, row in enumerate(rows, start=2):
         address = (row.get(address_col) or "").strip()
         if not address:
             row[lat_col] = ""
             row[lng_col] = ""
             row[formatted_address_col] = ""
+            row[failure_reason_col] = "EMPTY_ADDRESS: 住所が空です"
             failed += 1
             continue
 
-        result = geocoder.geocode(address)
+        response = geocoder.geocode(address)
 
-        if result is None:
+        if response.result is None:
             row[lat_col] = ""
             row[lng_col] = ""
             row[formatted_address_col] = ""
+            status = response.failure.status if response.failure else "UNKNOWN"
+            message = response.failure.message if response.failure else "原因不明"
+            row[failure_reason_col] = f"{status}: {message}"
+            print(f"WARN row={i} address='{address}' -> {row[failure_reason_col]}", file=sys.stderr)
             failed += 1
         else:
-            row[lat_col] = str(result.lat)
-            row[lng_col] = str(result.lng)
-            row[formatted_address_col] = result.formatted_address
+            row[lat_col] = str(response.result.lat)
+            row[lng_col] = str(response.result.lng)
+            row[formatted_address_col] = response.result.formatted_address
+            row[failure_reason_col] = ""
             success += 1
 
     with open(output_csv, "w", encoding="utf-8-sig", newline="") as f:
@@ -147,6 +173,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lat-col", default="緯度", help="緯度カラム名")
     parser.add_argument("--lng-col", default="経度", help="経度カラム名")
     parser.add_argument("--formatted-address-col", default="正規化住所", help="正規化住所の出力カラム名")
+    parser.add_argument(
+        "--failure-reason-col",
+        default="ジオコーディング失敗理由",
+        help="失敗理由の出力カラム名",
+    )
     parser.add_argument("--sleep", type=float, default=0.1, help="API呼び出し間隔(秒)")
     parser.add_argument("--timeout", type=int, default=10, help="HTTPタイムアウト(秒)")
     return parser.parse_args()
@@ -169,6 +200,7 @@ def main() -> int:
             lat_col=args.lat_col,
             lng_col=args.lng_col,
             formatted_address_col=args.formatted_address_col,
+            failure_reason_col=args.failure_reason_col,
         )
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
