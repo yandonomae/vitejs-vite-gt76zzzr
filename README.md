@@ -83,6 +83,18 @@ python review_fallbacks.py geocode_result.csv finalized.csv
 
 > 補足: 後工程での人手判断ができるよう、`geocode_csv.py` は `候補緯度(採用)` / `候補経度(採用)` も出力します。
 
+### Colabでの同期について（新しい `.py` が増えた場合）
+
+- はい、手動アップロード運用の場合は、追加した `.py` も都度同期が必要です。
+- ただし `geocode_colab.ipynb` の GitHub 同期（`git clone`）を使えば、**リポジトリ全体を取得**するため追加 `.py` の個別同期は不要です。
+- さらに、Notebook内に `LOW_PLACE_CONFIDENCE` 行を対話レビューして最終CSVを作るセルを追加しているため、
+  `review_fallbacks.py` を直接実行しなくても Colab 上で同じ運用ができます。
+
+### 全体ルールの保存場所
+
+- 全体運用ルールは `WORKFLOW_RULES.md` に記載しています。
+- ルール変更時は `README.md` / `geocode_colab.ipynb` / `WORKFLOW_RULES.md` を同時更新してください。
+
 ## 注意点
 
 - API利用料金・クォータ制限に注意してください。
