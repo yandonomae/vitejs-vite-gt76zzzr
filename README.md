@@ -65,6 +65,36 @@ python geocode_csv.py input.csv output.csv --disable-places
 - 出力: `緯度`, `経度`, `正規化住所` に加えて、`採用方式`, `信頼度`, `place_id`, `候補スコア`, `フォールバック理由` などを追記したCSV
 - エンコーディング: UTF-8 with BOM (`utf-8-sig`)
 
+### geocode_fallback 行を対話レビューして最終CSVを作る
+
+`geocode_csv.py` 実行後に、`LOW_PLACE_CONFIDENCE` でフォールバックした行だけを1件ずつ確認し、
+`geocode` のままにするか `places` 候補を採用するかを選べます。
+
+```bash
+python review_fallbacks.py geocode_result.csv finalized.csv
+```
+
+- 対象: `採用方式=geocode_fallback` かつ `フォールバック理由=LOW_PLACE_CONFIDENCE:*`
+- 入力操作:
+  - `p`: Places候補を採用
+  - `g`: Geocodeのまま維持
+  - `q`: 途中で保存して終了
+- Places採用時は `採用方式=places_manual_review`, `信頼度=manual_override` に更新
+
+> 補足: 後工程での人手判断ができるよう、`geocode_csv.py` は `候補緯度(採用)` / `候補経度(採用)` も出力します。
+
+### Colabでの同期について（新しい `.py` が増えた場合）
+
+- はい、手動アップロード運用の場合は、追加した `.py` も都度同期が必要です。
+- ただし `geocode_colab.ipynb` の GitHub 同期（`git clone`）を使えば、**リポジトリ全体を取得**するため追加 `.py` の個別同期は不要です。
+- さらに、Notebook内に `LOW_PLACE_CONFIDENCE` 行を対話レビューして最終CSVを作るセルを追加しているため、
+  `review_fallbacks.py` を直接実行しなくても Colab 上で同じ運用ができます。
+
+### 全体ルールの保存場所
+
+- 全体運用ルールは `WORKFLOW_RULES.md` に記載しています。
+- ルール変更時は `README.md` / `geocode_colab.ipynb` / `WORKFLOW_RULES.md` を同時更新してください。
+
 ## 注意点
 
 - API利用料金・クォータ制限に注意してください。
