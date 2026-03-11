@@ -11,6 +11,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime, timedelta
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -361,9 +362,12 @@ def process_csv(
         ],
     )
 
+    total = len(rows)
+    started_at = time.time()
     success = 0
     failed = 0
-    for i, row in enumerate(rows, start=2):
+    for idx, row in enumerate(rows, start=1):
+        i = idx + 1
         address = (row.get(address_col) or "").strip()
         shop_name = (row.get(name_col) or "").strip()
 
@@ -384,6 +388,7 @@ def process_csv(
             row[match_method_col] = "none"
             row[confidence_col] = "low"
             failed += 1
+            _print_progress(idx, total, started_at)
             continue
 
         # まず住所ジオコーディングを行い、フォールバック先および Places のバイアス原点に使う。
@@ -416,6 +421,7 @@ def process_csv(
                 dist = _haversine_m(geocode_result.lat, geocode_result.lng, place_match.candidate.lat, place_match.candidate.lng)
                 row[distance_col] = f"{dist:.1f}"
             success += 1
+            _print_progress(idx, total, started_at)
             continue
 
         # Geocoding fallback
@@ -431,6 +437,7 @@ def process_csv(
             row[fallback_reason_col] = "GEOCODE_FAILED"
             print(f"WARN row={i} address='{address}' -> {row[failure_reason_col]}", file=sys.stderr)
             failed += 1
+            _print_progress(idx, total, started_at)
             continue
 
         row[lat_col] = str(geocode_result.lat)
@@ -452,6 +459,7 @@ def process_csv(
             dist = _haversine_m(geocode_result.lat, geocode_result.lng, place_match.candidate.lat, place_match.candidate.lng)
             row[distance_col] = f"{dist:.1f}"
         success += 1
+        _print_progress(idx, total, started_at)
 
     with open(output_csv, "w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=out_headers)
@@ -459,6 +467,26 @@ def process_csv(
         writer.writerows(rows)
 
     return success, failed
+
+
+def _print_progress(done: int, total: int, started_at: float) -> None:
+    if total <= 0:
+        return
+    elapsed = max(time.time() - started_at, 1e-6)
+    avg = elapsed / done
+    remain_count = max(total - done, 0)
+    remain_seconds = avg * remain_count
+    eta_clock = datetime.now() + timedelta(seconds=remain_seconds)
+    remain_min = int(remain_seconds // 60)
+    remain_sec = int(remain_seconds % 60)
+    print(
+        "PROGRESS "
+        f"{done}/{total} "
+        f"avg={avg:.2f}s/row "
+        f"eta={remain_min:02d}:{remain_sec:02d} "
+        f"finish_at={eta_clock.strftime('%H:%M')}",
+        flush=True,
+    )
 
 
 def parse_args() -> argparse.Namespace:
