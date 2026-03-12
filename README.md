@@ -81,6 +81,90 @@ python review_fallbacks.py geocode_result.csv finalized.csv
   - `q`: 途中で保存して終了
 - Places採用時は `採用方式=places_manual_review`, `信頼度=manual_override` に更新
 
+### Colab上の一括自動採用セル（`places_auto_review`）
+
+`geocode_colab.ipynb` には、対話レビューの前に以下の自動判定セルを追加しています。
+
+- 対象: `採用方式=geocode_fallback` かつ `フォールバック理由=LOW_PLACE_CONFIDENCE:*`
+- 条件: `places_geocode_distance_m <= 50`
+- 処理: Places候補を一括採用し、`採用方式=places_auto_review` として保存
+
+このセルは `FINAL_OUTPUT_CSV` を更新するため、続けて対話レビューセルを実行すると、
+残りの曖昧な行だけを `p/g` で確認できます。
+
+
+#### Colabランタイムを切らずに、既存セルへ直接貼り付ける用コード
+
+以下をそのまま **新規セル** または **既存セルの差し替え** に貼り付けて実行できます。
+
+```python
+import csv
+from pathlib import Path
+
+AUTO_REVIEW_ENABLED = True
+AUTO_REVIEW_MAX_DISTANCE_M = 50.0
+
+if not AUTO_REVIEW_ENABLED:
+    print('一括自動採用をスキップしました。')
+else:
+    in_path = Path(OUTPUT_CSV)
+    out_path = Path(FINAL_OUTPUT_CSV)
+
+    if not in_path.exists():
+        raise FileNotFoundError(f'入力CSVが見つかりません: {in_path}')
+
+    source_path = out_path if out_path.exists() else in_path
+    with source_path.open('r', encoding='utf-8-sig', newline='') as f:
+        reader = csv.DictReader(f)
+        headers = list(reader.fieldnames or [])
+        rows = list(reader)
+
+    required_cols = [
+        '採用方式', 'フォールバック理由', '緯度', '経度',
+        '正規化住所', '候補住所(採用)', '候補緯度(採用)', '候補経度(採用)',
+        'places_geocode_distance_m'
+    ]
+    for col in required_cols:
+        if col not in headers:
+            raise ValueError(f'必要列がありません: {col}')
+
+    changed = 0
+    for row in rows:
+        method = (row.get('採用方式', '') or '').strip()
+        reason = (row.get('フォールバック理由', '') or '').strip()
+        if method not in {'geocode_fallback', 'places_auto_review'}:
+            continue
+        if not reason.startswith('LOW_PLACE_CONFIDENCE:'):
+            continue
+
+        cand_lat = (row.get('候補緯度(採用)') or '').strip()
+        cand_lng = (row.get('候補経度(採用)') or '').strip()
+        if not cand_lat or not cand_lng:
+            continue
+
+        try:
+            distance_m = float((row.get('places_geocode_distance_m') or '').strip())
+        except ValueError:
+            continue
+
+        if distance_m <= AUTO_REVIEW_MAX_DISTANCE_M:
+            row['緯度'] = cand_lat
+            row['経度'] = cand_lng
+            row['正規化住所'] = row.get('候補住所(採用)', '')
+            row['採用方式'] = 'places_auto_review'
+            row['信頼度'] = 'auto_override'
+            row['フォールバック理由'] = f'AUTO_PLACE_OVERRIDE:distance_le_{int(AUTO_REVIEW_MAX_DISTANCE_M)}m'
+            changed += 1
+
+    with out_path.open('w', encoding='utf-8-sig', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=headers)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(f'一括採用件数: {changed}件 (閾値: {AUTO_REVIEW_MAX_DISTANCE_M}m)')
+    print(f'保存先: {out_path}')
+```
+
 > 補足: 後工程での人手判断ができるよう、`geocode_csv.py` は `候補緯度(採用)` / `候補経度(採用)` も出力します。
 
 ### Colabでの同期について（新しい `.py` が増えた場合）
