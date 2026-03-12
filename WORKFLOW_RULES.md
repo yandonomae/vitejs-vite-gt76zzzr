@@ -9,6 +9,7 @@
 
 ## 2. 出力確定ルール
 - まず `geocode_csv.py` で一括処理した中間CSVを作る。
+- Notebook運用では、必要に応じて `LOW_PLACE_CONFIDENCE` かつ `places_geocode_distance_m <= 50` を自動で `places_auto_review` 採用してよい。
 - `採用方式=geocode_fallback` かつ `フォールバック理由=LOW_PLACE_CONFIDENCE:*` の行だけをレビュー対象にする。
 - 最終CSVは、レビュー判断（geocode維持 / places採用）を反映したものを採用する。
 
